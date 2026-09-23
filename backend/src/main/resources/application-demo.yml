@@ -1,0 +1,8 @@
+# Perfil de demostración: crea datos ficticios al arrancar (si la base está vacía)
+# y un simulador que registra lecturas periódicas para ver el tablero en vivo.
+app:
+  seed:
+    staff-password: ${SEED_ADMIN_PASSWORD}
+    viewer-password: ${DEMO_VIEWER_PASSWORD}
+  demo:
+    simulator-enabled: ${DEMO_SIMULATOR_ENABLED:true}
