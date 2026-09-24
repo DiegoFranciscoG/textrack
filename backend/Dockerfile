@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -q package -DskipTests -Djac
     && java -Djarmode=tools -jar target/textrack-api.jar extract --layers --launcher --destination target/app
 
 # ---------- runtime: solo JRE, usuario sin privilegios ----------
-FROM eclipse-temurin:25.0.3_9-jre-alpine-3.23
+FROM eclipse-temurin:26-jre-alpine-3.24
 RUN addgroup -S textrack && adduser -S -G textrack -u 10001 textrack
 WORKDIR /app
 COPY --from=build --chown=textrack:textrack /workspace/target/app/dependencies/ ./
