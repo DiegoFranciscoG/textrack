@@ -18,6 +18,12 @@ import io.github.diegofranciscog.textrack.dto.ProductionDtos.RollLayRequest;
 import io.github.diegofranciscog.textrack.dto.ProductionDtos.SizeRatioRequest;
 import io.github.diegofranciscog.textrack.dto.QualityDtos.AqlDefectRequest;
 import io.github.diegofranciscog.textrack.dto.QualityDtos.CreateAqlInspectionRequest;
+import io.github.diegofranciscog.textrack.domain.ScanSource;
+import io.github.diegofranciscog.textrack.domain.ScanStatus;
+import io.github.diegofranciscog.textrack.domain.TicketInfo;
+import io.github.diegofranciscog.textrack.dto.ReadingDtos.ScanRequest;
+import io.github.diegofranciscog.textrack.dto.ReadingDtos.ScanResult;
+import io.github.diegofranciscog.textrack.repository.CutRepository;
 import io.github.diegofranciscog.textrack.repository.PlantRepository;
 import io.github.diegofranciscog.textrack.repository.UserRepository;
 import io.github.diegofranciscog.textrack.seed.DemoPlan.LinePlan;
@@ -30,6 +36,8 @@ import io.github.diegofranciscog.textrack.service.PlantService;
 import io.github.diegofranciscog.textrack.service.PlantTime;
 import io.github.diegofranciscog.textrack.service.ProductionOrderService;
 import io.github.diegofranciscog.textrack.service.QualityService;
+import io.github.diegofranciscog.textrack.service.ReadingService;
+import io.github.diegofranciscog.textrack.service.calc.TicketPayload;
 import io.github.diegofranciscog.textrack.service.calc.AqlPlanCalculator;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -91,6 +99,8 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final ProductionOrderService orders;
     private final CutService cuts;
     private final QualityService quality;
+    private final ReadingService readingService;
+    private final CutRepository cutRepository;
     private final PlantTime time;
     private final AppProperties properties;
     private final Random random = new Random(20_260_923L);
@@ -98,7 +108,8 @@ public class DemoDataSeeder implements ApplicationRunner {
     public DemoDataSeeder(JdbcClient jdbc, JdbcTemplate jdbcTemplate, TransactionTemplate transaction,
                           UserRepository users, PasswordEncoder passwordEncoder, EngineeringService engineering,
                           PlantService plantService, PlantRepository plant, FabricService fabric,
-                          ProductionOrderService orders, CutService cuts, QualityService quality, PlantTime time,
+                          ProductionOrderService orders, CutService cuts, QualityService quality,
+                          ReadingService readingService, CutRepository cutRepository, PlantTime time,
                           AppProperties properties) {
         this.jdbc = jdbc;
         this.jdbcTemplate = jdbcTemplate;
@@ -112,6 +123,8 @@ public class DemoDataSeeder implements ApplicationRunner {
         this.orders = orders;
         this.cuts = cuts;
         this.quality = quality;
+        this.readingService = readingService;
+        this.cutRepository = cutRepository;
         this.time = time;
         this.properties = properties;
     }
@@ -285,19 +298,100 @@ public class DemoDataSeeder implements ApplicationRunner {
     // ---------------------------------------------------------------- simulación de una jornada
 
     private void simulateDay(LocalDate day, int dayIndex) {
-        boolean today = day.equals(time.today());
         Instant now = time.nowInstant();
         Instant shiftEnd = at(day, SHIFT_END).toInstant();
-        Instant end = today && now.isBefore(shiftEnd) ? now : shiftEnd;
+        boolean shiftOpen = day.equals(time.today()) && now.isBefore(shiftEnd);
         seedStops(day, dayIndex, now);
+        ensureAttendance(day, shiftOpen);
+        List<SimReading> events = simulate(day, shiftOpen ? now : shiftEnd);
+        jdbcTemplate.batchUpdate("""
+                INSERT INTO scan_readings (client_reading_id, ticket_id, operator_id, scanned_at, received_at,
+                                           work_date, device_id, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'DEMO') ON CONFLICT DO NOTHING""",
+                events.stream().map(e -> new Object[] {UUID.randomUUID(), e.ticketId(), e.operatorId(),
+                        e.at().atOffset(ZoneOffset.UTC), e.at().plusSeconds(random.nextInt(90)).atOffset(ZoneOffset.UTC),
+                        day, "demo-tablet-" + e.lineCode()}).toList());
+        jdbc.sql("""
+                UPDATE production_orders SET status = 'IN_PROGRESS'
+                 WHERE status = 'CUTTING'
+                   AND EXISTS (SELECT 1 FROM cuts c JOIN bundles b ON b.cut_id = c.id
+                                 JOIN tickets t ON t.bundle_id = b.id JOIN scan_readings r ON r.ticket_id = t.id
+                                WHERE c.production_order_id = production_orders.id)""").update();
+        for (LinePlan line : DemoPlan.LINES) {
+            inspectLot(line, day, dayIndex, shiftOpen ? now : shiftEnd);
+        }
+        log.info("Demo: jornada {} simulada con {} lecturas", day, events.size());
+    }
+
+    /**
+     * Avance en vivo de la demo: continúa la simulación de hoy desde la última lectura de cada operaria hasta
+     * ahora y registra las lecturas por {@link ReadingService} (así el tablero se actualiza por WebSocket).
+     * Fuera del turno no genera lecturas y cierra la asistencia al terminar la jornada.
+     */
+    public synchronized int advanceLive() {
+        LocalDate today = time.today();
+        Instant now = time.nowInstant();
+        if (now.isBefore(at(today, SHIFT_START).plusMinutes(5).toInstant())) {
+            return 0;
+        }
+        ensureToday();
+        Instant shiftEnd = at(today, SHIFT_END).toInstant();
+        if (!now.isBefore(shiftEnd)) {
+            jdbc.sql("UPDATE attendances SET check_out = :out WHERE work_date = :day AND check_out IS NULL")
+                    .param("out", at(today, SHIFT_END).plusMinutes(random.nextInt(8))).param("day", today).update();
+            return 0;
+        }
+        int registered = 0;
+        for (SimReading event : simulate(today, now)) {
+            TicketInfo ticket = cutRepository.findTicket(event.ticketId()).orElseThrow();
+            String payload = new TicketPayload(ticket.keyId(), ticket.id(), ticket.bundleCode(), ticket.operationCode(),
+                    ticket.quantity(), ticket.signature()).encode();
+            ScanResult result = readingService.ingest(new ScanRequest(UUID.randomUUID(), payload, event.operatorCode(),
+                    event.at().atOffset(ZoneOffset.UTC), "demo-tablet-" + event.lineCode()), ScanSource.DEMO);
+            if (result.status() == ScanStatus.ACCEPTED) {
+                registered++;
+            }
+        }
+        return registered;
+    }
+
+    private void ensureAttendance(LocalDate day, boolean shiftOpen) {
+        for (LinePlan line : DemoPlan.LINES) {
+            for (WorkerPlan plan : line.workers()) {
+                long operatorId = plant.findOperatorByCode(plan.code()).orElseThrow().id();
+                if (plant.findAttendance(operatorId, day).isEmpty()) {
+                    Instant checkIn = at(day, SHIFT_START).toInstant().plusSeconds(random.nextInt(360));
+                    OffsetDateTime checkOut = shiftOpen ? null : at(day, SHIFT_END).plusMinutes(random.nextInt(10));
+                    plant.insertAttendance(operatorId, day, checkIn.atOffset(ZoneOffset.UTC), checkOut, BREAK_MINUTES);
+                }
+            }
+        }
+    }
+
+    /**
+     * Modelo de eventos: cada operaria toma el siguiente ticket disponible de sus operaciones (el paso anterior
+     * del bulto ya está hecho), tarda SAM × piezas ÷ eficiencia (±10 %) y respeta almuerzo y paros de su máquina.
+     * El reloj de cada operaria continúa desde su última lectura del día, así se puede avanzar por tramos.
+     */
+    private List<SimReading> simulate(LocalDate day, Instant until) {
         Map<Long, List<Interval>> stopsByMachine = new HashMap<>();
         for (MachineStop stop : plant.findStopsOverlapping(time.startOf(day), time.endOf(day))) {
-            Instant stopEnd = stop.endedAt() != null ? stop.endedAt().toInstant() : end;
+            Instant stopEnd = stop.endedAt() != null ? stop.endedAt().toInstant() : until;
             stopsByMachine.computeIfAbsent(stop.machineId(), k -> new ArrayList<>())
                     .add(new Interval(stop.startedAt().toInstant(), stopEnd));
         }
+        Map<Long, Instant> lastReading = new HashMap<>();
+        jdbc.sql("""
+                        SELECT operator_id, MAX(scanned_at) AS last FROM scan_readings
+                         WHERE work_date = :day GROUP BY operator_id""")
+                .param("day", day)
+                .query((rs, n) -> Map.entry(rs.getLong("operator_id"), rs.getObject("last", OffsetDateTime.class)))
+                .list()
+                .forEach(e -> lastReading.put(e.getKey(), e.getValue().toInstant()));
 
-        int readings = 0;
+        List<SimReading> events = new ArrayList<>();
+        Instant lunchStart = at(day, LUNCH_START).toInstant();
+        Instant lunchEnd = at(day, LUNCH_END).toInstant();
         for (LinePlan line : DemoPlan.LINES) {
             List<SimTicket> tickets = tickets(styleId(line));
             Map<Long, List<SimTicket>> byBundle = new HashMap<>();
@@ -312,19 +406,14 @@ public class DemoDataSeeder implements ApplicationRunner {
             PriorityQueue<SimWorker> queue = new PriorityQueue<>(Comparator.comparing(w -> w.clock));
             for (WorkerPlan plan : line.workers()) {
                 long operatorId = plant.findOperatorByCode(plan.code()).orElseThrow().id();
-                Instant checkIn = at(day, SHIFT_START).toInstant().plusSeconds(random.nextInt(360));
-                boolean shiftOpen = today && now.isBefore(shiftEnd);
-                OffsetDateTime checkOut = shiftOpen ? null : at(day, SHIFT_END).plusMinutes(random.nextInt(10));
-                if (plant.findAttendance(operatorId, day).isEmpty()) {
-                    plant.insertAttendance(operatorId, day, checkIn.atOffset(ZoneOffset.UTC), checkOut, BREAK_MINUTES);
-                }
+                Instant start = plant.findAttendance(operatorId, day).map(a -> a.checkIn().toInstant())
+                        .orElse(at(day, SHIFT_START).toInstant());
+                Instant last = lastReading.get(operatorId);
+                Instant clock = last != null && last.isAfter(start) ? last : start;
                 long machineId = machineId(plan.machineCode());
-                queue.add(new SimWorker(plan, operatorId, checkIn, stopsByMachine.getOrDefault(machineId, List.of())));
+                queue.add(new SimWorker(plan, operatorId, clock, stopsByMachine.getOrDefault(machineId, List.of())));
             }
 
-            List<Object[]> batch = new ArrayList<>();
-            Instant lunchStart = at(day, LUNCH_START).toInstant();
-            Instant lunchEnd = at(day, LUNCH_END).toInstant();
             while (!queue.isEmpty()) {
                 SimWorker worker = queue.poll();
                 if (!worker.clock.isBefore(lunchStart) && worker.clock.isBefore(lunchEnd)) {
@@ -335,7 +424,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                         worker.clock = stop.end;
                     }
                 }
-                if (!worker.clock.isBefore(end)) {
+                if (!worker.clock.isBefore(until)) {
                     continue;
                 }
                 SimTicket next = null;
@@ -362,31 +451,17 @@ public class DemoDataSeeder implements ApplicationRunner {
                 double noise = 0.9 + random.nextDouble() * 0.2;
                 double minutes = next.samMinutes * next.quantity / worker.plan.efficiency() * noise;
                 Instant finish = worker.clock.plusSeconds(Math.round(minutes * 60));
-                if (finish.isAfter(end)) {
+                if (finish.isAfter(until)) {
                     continue;
                 }
                 next.readAt = finish;
                 worker.clock = finish;
-                batch.add(new Object[] {UUID.randomUUID(), next.id, worker.operatorId, finish.atOffset(ZoneOffset.UTC),
-                        finish.plusSeconds(random.nextInt(90)).atOffset(ZoneOffset.UTC), day,
-                        "demo-tablet-" + line.code()});
+                events.add(new SimReading(next.id, worker.operatorId, worker.plan.code(), line.code(), finish));
                 queue.add(worker);
             }
-            jdbcTemplate.batchUpdate("""
-                    INSERT INTO scan_readings (client_reading_id, ticket_id, operator_id, scanned_at, received_at,
-                                               work_date, device_id, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'DEMO') ON CONFLICT DO NOTHING""", batch);
-            readings += batch.size();
-            jdbc.sql("""
-                    UPDATE production_orders SET status = 'IN_PROGRESS'
-                     WHERE status = 'CUTTING' AND style_id = :style
-                       AND EXISTS (SELECT 1 FROM cuts c JOIN bundles b ON b.cut_id = c.id
-                                     JOIN tickets t ON t.bundle_id = b.id JOIN scan_readings r ON r.ticket_id = t.id
-                                    WHERE c.production_order_id = production_orders.id)""")
-                    .param("style", styleId(line)).update();
-            inspectLot(line, day, dayIndex, end);
         }
-        log.info("Demo: jornada {} simulada con {} lecturas", day, readings);
+        events.sort(Comparator.comparing(SimReading::at));
+        return events;
     }
 
     private void seedStops(LocalDate day, int dayIndex, Instant now) {
@@ -512,6 +587,9 @@ public class DemoDataSeeder implements ApplicationRunner {
     }
 
     private record Interval(Instant start, Instant end) {
+    }
+
+    private record SimReading(UUID ticketId, long operatorId, String operatorCode, String lineCode, Instant at) {
     }
 
     private static final class SimTicket {
