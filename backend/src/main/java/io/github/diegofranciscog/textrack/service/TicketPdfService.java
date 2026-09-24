@@ -114,7 +114,7 @@ public class TicketPdfService {
         BitMatrix matrix;
         try {
             matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 0, 0,
-                    Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M, EncodeHintType.MARGIN, 1));
+                    Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M, EncodeHintType.MARGIN, 2));
         } catch (WriterException e) {
             throw new IllegalStateException("No se pudo codificar el QR", e);
         }
