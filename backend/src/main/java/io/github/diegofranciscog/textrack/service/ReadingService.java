@@ -73,7 +73,7 @@ public class ReadingService {
         }
         TicketPayload payload = parsed.get();
         if (!signer.verify(payload)) {
-            log.warn("Ticket con firma inválida desde el dispositivo {}", request.deviceId());
+            log.warn("Ticket con firma inválida desde el dispositivo {}", safeForLog(request.deviceId()));
             return reject(request, ScanStatus.INVALID_SIGNATURE, "Firma inválida: el ticket no fue emitido por textrack");
         }
 
@@ -166,6 +166,11 @@ public class ReadingService {
                                      TicketInfo ticket, String registeredBy, OffsetDateTime registeredAt) {
         return new ScanResult(request.clientReadingId(), status, message, readingId, ticket.id(), ticket.bundleCode(),
                 ticket.operationCode(), ticket.quantity(), registeredBy, registeredAt);
+    }
+
+    /** El id de dispositivo llega del cliente: sin saltos de línea para que no pueda falsificar entradas del log. */
+    private static String safeForLog(String value) {
+        return value == null ? null : value.replaceAll("[\r\n\t]", "_");
     }
 
     /** Evento para refrescar el tablero en vivo. */
