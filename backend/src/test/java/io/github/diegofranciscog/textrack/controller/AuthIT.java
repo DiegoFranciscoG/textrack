@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import io.github.diegofranciscog.textrack.domain.Role;
+import io.github.diegofranciscog.textrack.security.RequestSizeLimitFilter;
 import io.github.diegofranciscog.textrack.support.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -158,6 +159,14 @@ class AuthIT extends IntegrationTest {
         mvc.perform(get("/actuator/env").header("Authorization", bearer(Role.ADMIN)))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(403, 404));
         mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+    }
+
+    @Test
+    void oversizedBodiesAreRejectedBeforeParsing() throws Exception {
+        byte[] body = new byte[(int) RequestSizeLimitFilter.MAX_BODY_BYTES + 1];
+        mvc.perform(post("/api/v1/readings/batch").header("Authorization", bearer(Role.SCANNER))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().is(413));
     }
 
     @Test

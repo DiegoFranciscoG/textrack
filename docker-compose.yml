@@ -1,0 +1,50 @@
+# Stack completo en local con datos de demostración ficticios:  cp .env.example .env  (completa)  →  docker compose up --build
+# Web: http://localhost:8088 · API (para el emulador Android: 10.0.2.2:8081): http://localhost:8081
+name: textrack
+
+services:
+  db:
+    image: postgres:18.6-alpine3.24
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-textrack}
+      POSTGRES_USER: ${POSTGRES_USER:-textrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-textrack}
+      DB_USER: ${POSTGRES_USER:-textrack}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      TICKET_HMAC_SECRET: ${TICKET_HMAC_SECRET:?Define TICKET_HMAC_SECRET en .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Define SEED_ADMIN_PASSWORD en .env}
+      DEMO_VIEWER_PASSWORD: ${DEMO_VIEWER_PASSWORD:?Define DEMO_VIEWER_PASSWORD en .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8080"
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8088:8080"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

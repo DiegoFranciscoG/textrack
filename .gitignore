@@ -11,6 +11,7 @@
 # ---- Java / Maven / Gradle
 target/
 build/
+.kotlin/
 !**/src/main/**/build/
 !**/src/test/**/build/
 .gradle/
