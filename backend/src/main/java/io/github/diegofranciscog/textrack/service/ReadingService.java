@@ -11,6 +11,7 @@ import io.github.diegofranciscog.textrack.dto.ReadingDtos.ScanRequest;
 import io.github.diegofranciscog.textrack.dto.ReadingDtos.ScanResult;
 import io.github.diegofranciscog.textrack.repository.CutRepository;
 import io.github.diegofranciscog.textrack.repository.PlantRepository;
+import io.github.diegofranciscog.textrack.repository.ProductionOrderRepository;
 import io.github.diegofranciscog.textrack.repository.ReadingRepository;
 import io.github.diegofranciscog.textrack.repository.ReadingRepository.StoredReading;
 import io.github.diegofranciscog.textrack.service.calc.TicketPayload;
@@ -45,16 +46,19 @@ public class ReadingService {
 
     private final ReadingRepository readings;
     private final CutRepository cuts;
+    private final ProductionOrderRepository orders;
     private final PlantRepository plant;
     private final TicketSigner signer;
     private final PlantTime time;
     private final ApplicationEventPublisher events;
     private final AppProperties.Production settings;
 
-    public ReadingService(ReadingRepository readings, CutRepository cuts, PlantRepository plant, TicketSigner signer,
-                          PlantTime time, ApplicationEventPublisher events, AppProperties properties) {
+    public ReadingService(ReadingRepository readings, CutRepository cuts, ProductionOrderRepository orders,
+                          PlantRepository plant, TicketSigner signer, PlantTime time, ApplicationEventPublisher events,
+                          AppProperties properties) {
         this.readings = readings;
         this.cuts = cuts;
+        this.orders = orders;
         this.plant = plant;
         this.signer = signer;
         this.time = time;
@@ -100,6 +104,7 @@ public class ReadingService {
         Optional<Long> inserted = readings.insertIfAbsent(request.clientReadingId(), payload.ticketId(),
                 operator.get().id(), request.scannedAt(), workDate, request.deviceId(), source.name());
         if (inserted.isPresent()) {
+            orders.markInProgressByTicket(payload.ticketId());
             events.publishEvent(new ReadingAcceptedEvent(workDate, inserted.get()));
             return result(request, ScanStatus.ACCEPTED, "Lectura registrada", inserted.get(), ticket.get(),
                     operator.get().code(), request.scannedAt());

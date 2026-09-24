@@ -6,6 +6,7 @@ import io.github.diegofranciscog.textrack.domain.ProductionOrder;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -74,6 +75,17 @@ public class ProductionOrderRepository {
     public void updateStatus(long orderId, OrderStatus status) {
         jdbc.sql("UPDATE production_orders SET status = :status WHERE id = :id")
                 .param("status", status.name()).param("id", orderId).update();
+    }
+
+    /** La primera lectura de cualquier ticket de la orden la pasa de CUTTING a IN_PROGRESS. */
+    public void markInProgressByTicket(UUID ticketId) {
+        jdbc.sql("""
+                        UPDATE production_orders SET status = 'IN_PROGRESS'
+                         WHERE status = 'CUTTING'
+                           AND id = (SELECT c.production_order_id FROM tickets t
+                                       JOIN bundles b ON b.id = t.bundle_id JOIN cuts c ON c.id = b.cut_id
+                                      WHERE t.id = :ticket)""")
+                .param("ticket", ticketId).update();
     }
 
     /** Piezas terminadas de la orden: lecturas de la última operación de la ruta. */
