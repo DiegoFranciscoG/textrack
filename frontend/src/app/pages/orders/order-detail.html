@@ -1,0 +1,163 @@
+<section class="page">
+  <a routerLink="/orders" class="muted">← Órdenes</a>
+  @if (order(); as o) {
+    <div class="page-header">
+      <div>
+        <h1>{{ o.code }} · {{ o.styleName }}</h1>
+        <p class="muted">{{ o.customer }} · entrega {{ o.dueDate }} · {{ labels[o.status] }}</p>
+      </div>
+    </div>
+
+    @if (message()) { <div class="message success">{{ message() }}</div> }
+    @if (error()) { <div class="message error">{{ error() }}</div> }
+
+    <div class="progress">
+      <div class="card kpi"><span class="label">Pedido</span><span class="value">{{ o.totalQuantity | num }}</span></div>
+      <div class="card kpi"><span class="label">Cortado</span><span class="value">{{ o.cutQuantity | num }}</span></div>
+      <div class="card kpi"><span class="label">Terminado</span><span class="value">{{ o.finishedQuantity | num }}</span>
+        <span class="hint">lecturas de la última operación</span></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top: 1rem">
+      <section class="card">
+        <h2>Tallas y colores</h2>
+        <table>
+          <thead><tr><th>Color</th><th>Talla</th><th class="num">Pedido</th><th class="num">Cortado</th></tr></thead>
+          <tbody>
+            @for (l of o.lines; track l.sizeCode + l.color) {
+              <tr><td>{{ l.color }}</td><td>{{ l.sizeCode }}</td><td class="num">{{ l.quantity }}</td>
+                <td class="num">{{ l.cutQuantity }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Cortes</h2>
+        <table>
+          <thead><tr><th>Corte</th><th>Color</th><th class="num">Bultos</th><th class="num">Piezas</th><th></th></tr></thead>
+          <tbody>
+            @for (c of o.cuts; track c.id) {
+              <tr>
+                <td><a href="" (click)="$event.preventDefault(); showCut(c.id)"><strong>{{ c.code }}</strong></a>
+                  <span class="muted">{{ c.createdAt | plantTime: true }}</span></td>
+                <td>{{ c.color }}</td>
+                <td class="num">{{ c.bundles }}</td>
+                <td class="num">{{ c.pieces }}</td>
+                <td><button class="small" type="button" (click)="downloadTickets(c.id, c.code)">Tickets PDF</button></td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5" class="muted">Aún no hay cortes.</td></tr>
+            }
+          </tbody>
+        </table>
+
+        @if (canCut() && o.status !== 'COMPLETED' && o.status !== 'CANCELLED') {
+          <form class="stack" style="margin-top: 1rem" (ngSubmit)="createCut()">
+            <h3>Registrar corte</h3>
+            <div class="form-grid">
+              <label>Color
+                <select name="color" [ngModel]="cutColor()" (ngModelChange)="selectColor($event)">
+                  @for (c of colors(); track c) { <option [value]="c">{{ c }}</option> }
+                </select>
+              </label>
+              <label>Rollo aprobado
+                <select name="roll" [(ngModel)]="rollId" required>
+                  @for (r of availableRolls(); track r.id) {
+                    <option [ngValue]="r.id">{{ r.code }} · lote {{ r.dyeLot }} · {{ r.remainingM }} m</option>
+                  } @empty { <option [ngValue]="null">Sin rollos aprobados de este color</option> }
+                </select>
+              </label>
+              <label>Capas <input name="plies" type="number" min="1" max="500" [(ngModel)]="plies" /></label>
+              <label>Metros usados <input name="meters" type="number" min="0.1" step="0.1" [(ngModel)]="meters" /></label>
+              <label>Máx. piezas por bulto <input name="bundle" type="number" min="1" max="100" [(ngModel)]="bundleSize" /></label>
+            </div>
+            <div class="ratio">
+              @for (size of sizesFor(cutColor()); track size) {
+                <label>{{ size }} / capa <input [name]="'r' + size" type="number" min="0" max="50" [(ngModel)]="ratios[size]" /></label>
+              }
+            </div>
+            <div class="row">
+              <span class="muted">Se cortarán {{ piecesPreview() | num }} piezas en bultos de hasta {{ bundleSize }}.</span>
+              <button class="primary" type="submit" [disabled]="rollId == null">Cortar y generar tickets</button>
+            </div>
+          </form>
+        }
+      </section>
+    </div>
+
+    @if (selectedCut(); as cut) {
+      <section class="card" style="margin-top: 1rem">
+        <div class="page-header">
+          <h2>Bultos del corte {{ cut.code }}</h2>
+          <button type="button" (click)="downloadTickets(cut.id, cut.code)">Descargar {{ cut.tickets }} tickets (PDF)</button>
+        </div>
+        <p class="muted">
+          Tendido: @for (r of cut.rolls; track r.rollCode) { {{ r.rollCode }} (lote {{ r.dyeLot }}, {{ r.plies }} capas) }
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Bulto</th><th>Talla</th><th class="num">Piezas</th><th>Rollo</th><th>Lote de teñido</th></tr></thead>
+            <tbody>
+              @for (b of cut.bundles; track b.id) {
+                <tr><td><code>{{ b.code }}</code></td><td>{{ b.sizeCode }}</td><td class="num">{{ b.quantity }}</td>
+                  <td>{{ b.rollCode }}</td><td>{{ b.dyeLot }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+
+    @if (report(); as r) {
+      <section class="card" style="margin-top: 1rem">
+        <div class="page-header">
+          <div>
+            <h2>Cuellos de botella por operación</h2>
+            <p class="muted">
+              Minutos restantes = piezas pendientes × SAM ÷ operarios asignados (últimos 3 días).
+              @if (r.balanceEfficiency != null) { Eficiencia de balanceo: {{ r.balanceEfficiency * 100 | num }} %. }
+            </p>
+          </div>
+          @if (r.bottleneckCode) {
+            <span class="badge warn">Cuello de botella: {{ r.bottleneckCode }}
+              @if (r.estimatedHoursToFinish != null) { · {{ r.estimatedHoursToFinish | num }} h para terminar }</span>
+          }
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Op.</th><th>Operación</th><th class="num">SAM</th><th class="num">Operarios</th>
+                <th class="num">Hechas</th><th class="num">WIP antes</th><th class="num">Cap./h</th><th>Carga restante</th></tr>
+            </thead>
+            <tbody>
+              @for (op of r.operations; track op.code) {
+                <tr [class.bottleneck]="op.bottleneck">
+                  <td>{{ op.code }}</td>
+                  <td>{{ op.name }}</td>
+                  <td class="num">{{ op.samMinutes | num }}</td>
+                  <td class="num">{{ op.operators }}</td>
+                  <td class="num">{{ op.completedPieces }} / {{ r.totalPieces }}</td>
+                  <td class="num">{{ op.wipBefore }}</td>
+                  <td class="num">{{ op.capacityPerHour | num }}</td>
+                  <td>
+                    <div class="load">
+                      <div class="bar" [class]="op.bottleneck ? 'bar bad' : 'bar'">
+                        <span [style.width]="loadWidth(op.remainingMinutes)"></span>
+                      </div>
+                      {{ op.remainingMinutes != null ? (op.remainingMinutes | num) + ' min' : 'sin dotación' }}
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  } @else if (error()) {
+    <div class="message error">{{ error() }}</div>
+  } @else {
+    <div class="empty">Cargando…</div>
+  }
+</section>

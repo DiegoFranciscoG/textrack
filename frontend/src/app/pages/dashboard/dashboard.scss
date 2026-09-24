@@ -1,0 +1,156 @@
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  background: var(--surface-2);
+  color: var(--muted);
+  transition: box-shadow 0.3s;
+}
+
+.live .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.live.state-live {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.live.state-connecting {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.live.flash {
+  box-shadow: 0 0 0 4px var(--ok-soft);
+}
+
+.kpis {
+  margin-bottom: 1.25rem;
+}
+
+.kpi.highlight {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.kpi.highlight .label,
+.kpi.highlight .value,
+.kpi.highlight .hint {
+  color: #fff;
+}
+
+.kpi.alert {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.kpi.alert .value {
+  color: var(--bad);
+}
+
+.section {
+  margin-top: 0.5rem;
+}
+
+.line {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.line-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.line-body p {
+  margin: -0.4rem 0 0.6rem;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+  align-items: center;
+}
+
+dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+dd {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 52px;
+  gap: 0.5rem;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.lower {
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  margin-top: 1.25rem;
+  align-items: start;
+}
+
+.eff {
+  display: grid;
+  grid-template-columns: 90px 50px;
+  gap: 0.5rem;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.stop {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 0.35rem 0;
+}
+
+.feed ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.feed li {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1100px) {
+  .lower {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .line {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

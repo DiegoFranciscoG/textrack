@@ -1,0 +1,194 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1>Tablero en vivo</h1>
+      <p class="muted">
+        KPI de ISO 22400-2 por módulo de costura · jornada {{ data()?.workDate ?? '—' }}
+      </p>
+    </div>
+    <div class="row">
+      <span [class]="'live state-' + socket.state()" [class.flash]="flash()">
+        <span class="dot"></span>
+        @switch (socket.state()) {
+          @case ('live') { En vivo }
+          @case ('connecting') { Conectando… }
+          @default { Sin conexión en vivo }
+        }
+      </span>
+      <span class="muted">Actualizado {{ data()?.generatedAt | plantTime }}</span>
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="message error">{{ error() }}</div>
+  }
+
+  @if (data(); as d) {
+    <div class="grid grid-4 kpis">
+      <div class="card kpi highlight">
+        <span class="label">OEE planta</span>
+        <span class="value">{{ d.plant.oee | pct }}</span>
+        <span class="hint">A × E × Q</span>
+      </div>
+      <div class="card kpi">
+        <span class="label">Disponibilidad</span>
+        <span class="value">{{ d.plant.availability | pct }}</span>
+        <div class="bar" [class]="'bar ' + tone(d.plant.availability, 0.9, 0.8)">
+          <span [style.width]="width(d.plant.availability)"></span>
+        </div>
+      </div>
+      <div class="card kpi">
+        <span class="label">Rendimiento</span>
+        <span class="value">{{ d.plant.performance | pct }}</span>
+        <div class="bar" [class]="'bar ' + tone(d.plant.performance, 0.75, 0.6)">
+          <span [style.width]="width(d.plant.performance)"></span>
+        </div>
+      </div>
+      <div class="card kpi">
+        <span class="label">Calidad</span>
+        <span class="value">{{ d.plant.quality | pct }}</span>
+        <span class="hint">{{ d.plant.qualityMeasured ? 'Estimada por muestreo AQL' : 'Sin inspecciones hoy' }}</span>
+      </div>
+      <div class="card kpi">
+        <span class="label">Eficiencia (OIT)</span>
+        <span class="value">{{ d.plant.efficiency | pct }}</span>
+        <span class="hint">{{ d.plant.earnedMinutes | num }} min estándar</span>
+      </div>
+      <div class="card kpi">
+        <span class="label">Piezas-operación</span>
+        <span class="value">{{ d.plant.pieces | num }}</span>
+        <span class="hint">lecturas de tickets hoy</span>
+      </div>
+      <div class="card kpi" [class.alert]="d.operatorsBelowFloor > 0">
+        <span class="label">Bajo piso SBU</span>
+        <span class="value">{{ d.operatorsBelowFloor }}</span>
+        <span class="hint">operarios con complemento</span>
+      </div>
+      <div class="card kpi" [class.alert]="d.forgedTicketsToday > 0">
+        <span class="label">Tickets falsificados</span>
+        <span class="value">{{ d.forgedTicketsToday }}</span>
+        <span class="hint">firma HMAC inválida hoy</span>
+      </div>
+    </div>
+
+    <h2 class="section">Módulos de costura</h2>
+    <div class="grid grid-2">
+      @for (line of d.lines; track line.lineId) {
+        <article class="card line">
+          <app-gauge [value]="line.kpi.oee" label="OEE" />
+          <div class="line-body">
+            <h3>{{ line.lineName }}</h3>
+            <p class="muted">{{ line.operatorsPresent }} operarios · {{ line.kpi.pieces | num }} piezas-operación</p>
+            <dl>
+              <dt>Disponibilidad</dt>
+              <dd>
+                <div class="bar" [class]="'bar ' + tone(line.kpi.availability, 0.9, 0.8)">
+                  <span [style.width]="width(line.kpi.availability)"></span>
+                </div>
+                {{ line.kpi.availability | pct }}
+              </dd>
+              <dt>Rendimiento</dt>
+              <dd>
+                <div class="bar" [class]="'bar ' + tone(line.kpi.performance, 0.75, 0.6)">
+                  <span [style.width]="width(line.kpi.performance)"></span>
+                </div>
+                {{ line.kpi.performance | pct }}
+              </dd>
+              <dt>Calidad</dt>
+              <dd>
+                <div class="bar" [class]="'bar ' + tone(line.kpi.quality, 0.97, 0.9)">
+                  <span [style.width]="width(line.kpi.quality)"></span>
+                </div>
+                {{ line.kpi.quality | pct }}
+              </dd>
+            </dl>
+          </div>
+        </article>
+      } @empty {
+        <div class="empty">Sin líneas configuradas.</div>
+      }
+    </div>
+
+    <div class="grid lower">
+      <section class="card">
+        <h2>Operarios · eficiencia y destajo del día</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Operario</th>
+                <th>Línea</th>
+                <th class="num">Piezas</th>
+                <th>Eficiencia</th>
+                <th class="num" title="Pago de las piezas en horas ordinarias">Ordinario</th>
+                <th class="num" title="SBU prorrateado a las horas trabajadas">Piso SBU</th>
+                <th class="num" title="Incluye recargos y complemento">Total</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (op of operators(); track op.operatorId) {
+                <tr [class.alert]="op.belowFloor">
+                  <td><strong>{{ op.operatorCode }}</strong> <span class="muted">{{ op.operatorName }}</span></td>
+                  <td>{{ op.lineCode }}</td>
+                  <td class="num">{{ op.pieces | num }}</td>
+                  <td>
+                    <div class="eff">
+                      <div class="bar" [class]="'bar ' + tone(op.efficiency, 0.8, 0.65)">
+                        <span [style.width]="width(op.efficiency)"></span>
+                      </div>
+                      {{ op.efficiency | pct }}
+                    </div>
+                  </td>
+                  <td class="num">{{ op.ordinaryPay | usd }}</td>
+                  <td class="num">{{ op.floor | usd }}</td>
+                  <td class="num">{{ op.totalPay | usd }}</td>
+                  <td>
+                    @if (op.belowFloor) {
+                      <span class="badge bad">Bajo SBU</span>
+                    } @else {
+                      <span class="badge ok">OK</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="stack">
+        <section class="card">
+          <h2>Paros activos</h2>
+          @for (stop of d.activeStops; track stop.id) {
+            <div class="stop">
+              <span class="badge" [class]="stop.planned ? 'badge info' : 'badge bad'">
+                {{ stop.planned ? 'Planificado' : 'No planificado' }}
+              </span>
+              <strong>{{ stop.machineCode }}</strong> · {{ reasons[stop.reason] ?? stop.reason }}
+              <span class="muted">{{ stop.minutes }} min</span>
+            </div>
+          } @empty {
+            <p class="muted">Sin paros en curso.</p>
+          }
+        </section>
+        <section class="card feed">
+          <h2>Últimas lecturas</h2>
+          <ul>
+            @for (r of d.recentReadings; track r.id) {
+              <li>
+                <span class="time">{{ r.scannedAt | plantTime }}</span>
+                <span><strong>{{ r.operatorCode }}</strong> {{ r.operationCode }} · <code>{{ r.bundleCode }}</code></span>
+                <span class="muted">{{ r.quantity }} pzs</span>
+              </li>
+            } @empty {
+              <li class="muted">Aún no hay lecturas.</li>
+            }
+          </ul>
+        </section>
+      </div>
+    </div>
+  } @else if (!error()) {
+    <div class="empty">Cargando tablero…</div>
+  }
+</section>

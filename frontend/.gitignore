@@ -1,0 +1,19 @@
+# Compilados y dependencias
+/dist
+/tmp
+/out-tsc
+/node_modules
+/.angular/cache
+/coverage
+npm-debug.log
+
+# Playwright
+/test-results
+/playwright-report
+/blob-report
+
+# IDE y sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
