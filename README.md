@@ -159,7 +159,7 @@ Pasos: 1) crear la base en Neon y copiar la cadena JDBC; 2) *New Blueprint* en R
 ## Seguridad aplicada
 - Deny-by-default con roles por ruta (`ADMIN`, `PLANNER`, `SUPERVISOR`, `QUALITY`, `SCANNER`, `VIEWER`); el visor de la demo no puede escribir nada.
 - JWT HS256 de 15 min con secreto de entorno; refresh tokens opacos guardados como SHA-256, rotados en cada uso y **revocación total si se reutiliza uno viejo**.
-- BCrypt (coste 12), respuesta idéntica y tiempo similar para usuario inexistente, **rate limiting** por IP y usuario (Bucket4j).
+- BCrypt (coste 12), respuesta idéntica y tiempo similar para usuario inexistente, **rate limiting** por IP, por IP + usuario y por cuenta (este último no depende de `X-Forwarded-For`, que el cliente puede falsificar) con Bucket4j.
 - Bean Validation en todos los DTO, errores RFC 9457 sin trazas, cuerpos > 1 MB rechazados antes de parsear.
 - CORS y orígenes WebSocket explícitos; JWT validado también en el frame STOMP `CONNECT`.
 - Cabeceras CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` en API y nginx/Vercel; Actuator expone solo `health`.
