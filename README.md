@@ -133,7 +133,7 @@ Swagger UI: `http://localhost:8081/swagger-ui.html` · colección de ejemplos: [
 
 ## Tests y cobertura
 ```bash
-cd backend && ./mvnw verify       # 137 tests: unitarios + integración con Testcontainers (PostgreSQL 18) + JaCoCo
+cd backend && ./mvnw verify       # 138 tests: unitarios + integración con Testcontainers (PostgreSQL 18) + JaCoCo
 cd frontend && npm test           # Vitest (10 tests)
 cd frontend && npm run e2e        # Playwright contra el stack (E2E_BASE_URL, E2E_VIEWER_PASSWORD)
 cd android && ./gradlew testDebugUnitTest   # 10 tests JVM
