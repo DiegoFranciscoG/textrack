@@ -33,7 +33,7 @@ import { Style } from '../../core/models';
                     <td><strong>{{ op.code }}</strong> {{ op.name }}</td>
                     <td class="muted">{{ op.machineType }}</td>
                     <td class="num">{{ op.samMinutes | num }}</td>
-                    <td class="num">{{ op.currentRateUsd | usd }}</td>
+                    <td class="num">{{ op.currentRateUsd | usd: 4 }}</td>
                     <td class="num">{{ op.currentRateUsd != null ? (op.currentRateUsd / op.samMinutes | num) : '—' }}</td>
                   </tr>
                 }

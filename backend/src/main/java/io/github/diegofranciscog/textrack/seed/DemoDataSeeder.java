@@ -143,6 +143,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 seedUsers(seed);
                 seedPlantAndProduction();
                 List<LocalDate> pastDays = previousWorkingDays(2);
+                backdateMasterData(pastDays.getFirst());
                 for (int i = 0; i < pastDays.size(); i++) {
                     simulateDay(pastDays.get(i), i);
                 }
@@ -225,6 +226,16 @@ public class DemoDataSeeder implements ApplicationRunner {
         // Orden planificada sin cortar: la demo permite registrar el corte con el rollo R-24094.
         order(styleIds.get("L1"), "Cliente Demo Amazonía", due.plusDays(15), "Azul marino",
                 Map.of("S", 60, "M", 120, "L", 120, "XL", 60));
+    }
+
+    /** Cronología coherente: la tela llega y se inspecciona, luego se planifica y se corta antes de coser. */
+    private void backdateMasterData(LocalDate firstDay) {
+        OffsetDateTime received = at(firstDay.minusDays(3), LocalTime.of(9, 0));
+        jdbc.sql("UPDATE fabric_rolls SET received_at = :at").param("at", received).update();
+        jdbc.sql("UPDATE fabric_inspections SET inspected_at = :at").param("at", received.plusHours(3)).update();
+        jdbc.sql("UPDATE production_orders SET created_at = :at")
+                .param("at", at(firstDay.minusDays(2), LocalTime.of(10, 0))).update();
+        jdbc.sql("UPDATE cuts SET created_at = :at").param("at", at(firstDay.minusDays(1), LocalTime.of(15, 0))).update();
     }
 
     /** Rollo inspeccionado con 4 puntos. {@code defects < 0} crea un rollo que se rechaza. */

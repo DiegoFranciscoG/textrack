@@ -14,6 +14,7 @@ describe('format', () => {
     expect(new UsdPipe().transform(16.07)).toContain('16,07');
     expect(new PctPipe().transform(0.7231)).toContain('72,3');
     expect(new UsdPipe().transform(null)).toBe('—');
+    expect(new UsdPipe().transform(0.0275, 4)).toContain('0,0275');
   });
 
   it('muestra la hora de planta', () => {

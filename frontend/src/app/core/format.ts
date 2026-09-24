@@ -22,10 +22,16 @@ const dateTime = new Intl.DateTimeFormat('es-EC', {
   timeZone: PLANT_ZONE,
 });
 
+const rate = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD', minimumFractionDigits: 4 });
+
+/** Moneda en USD; con `digits = 4` para tarifas por pieza (0,0275 no debe verse como 0,03). */
 @Pipe({ name: 'usd' })
 export class UsdPipe implements PipeTransform {
-  transform(value: number | null | undefined): string {
-    return value == null ? '—' : money.format(value);
+  transform(value: number | null | undefined, digits: 2 | 4 = 2): string {
+    if (value == null) {
+      return '—';
+    }
+    return (digits === 4 ? rate : money).format(value);
   }
 }
 
