@@ -120,6 +120,12 @@ code,
   gap: 1rem;
 }
 
+/* Los hijos de grid/flex pueden encogerse: las tablas anchas hacen scroll dentro de su tarjeta. */
+.grid > *,
+.stack > * {
+  min-width: 0;
+}
+
 .grid-2 {
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }

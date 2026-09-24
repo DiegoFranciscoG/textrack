@@ -85,7 +85,7 @@ const PREMIUM_LABELS: Record<string, string> = {
                   @for (l of d.lines; track $index) {
                     <tr>
                       <td>{{ l.scannedAt | plantTime }}</td><td>{{ l.operationCode }}</td><td class="num">{{ l.quantity }}</td>
-                      <td class="num">{{ l.rateUsd | usd }}</td><td class="num">{{ l.baseAmount | usd }}</td>
+                      <td class="num">{{ l.rateUsd | usd: 4 }}</td><td class="num">{{ l.baseAmount | usd }}</td>
                       <td>{{ premiums[l.premium] }}</td><td class="num">{{ l.premiumAmount | usd }}</td>
                     </tr>
                   }
