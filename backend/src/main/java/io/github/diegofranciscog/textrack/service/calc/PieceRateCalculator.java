@@ -67,8 +67,11 @@ public final class PieceRateCalculator {
                     money(base), premium, money(premiumAmount)));
         }
 
+        // Sin asistencia ni producción el día no se trabajó: no hay piso que garantizar.
+        boolean notWorked = input.shift() == null && input.pieces().isEmpty();
         BigDecimal attendedMinutes = input.shift() == null ? null : workedMinutes(input.shift(), input.now());
-        BigDecimal ordinaryHours = attendedMinutes == null
+        BigDecimal ordinaryHours = notWorked ? BigDecimal.ZERO
+                : attendedMinutes == null
                 ? BigDecimal.valueOf(ORDINARY_HOURS_PER_DAY)
                 : attendedMinutes.divide(BigDecimal.valueOf(60), 4, RoundingMode.HALF_UP)
                         .min(BigDecimal.valueOf(ORDINARY_HOURS_PER_DAY));
