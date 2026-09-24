@@ -168,6 +168,16 @@ class PieceRateCalculatorTest {
     }
 
     @Test
+    @DisplayName("Día sin asistencia ni producción: no trabajado, sin piso ni complemento")
+    void dayWithoutAttendanceNorPiecesIsNotWorked() {
+        DailyPay day = pay(WEDNESDAY, null, List.of());
+
+        assertThat(day.floor()).isEqualByComparingTo("0");
+        assertThat(day.belowFloor()).isFalse();
+        assertThat(day.totalPay()).isEqualByComparingTo("0");
+    }
+
+    @Test
     @DisplayName("Eficiencia OIT = minutos estándar producidos / minutos de asistencia")
     void efficiencyUsesEarnedMinutes() {
         DailyPay day = pay(WEDNESDAY, dayShift(WEDNESDAY), List.of(piece(at(WEDNESDAY, 10, 0), 400, RATE)));
