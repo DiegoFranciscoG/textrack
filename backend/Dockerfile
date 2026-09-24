@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # ---------- build: compila y separa el jar en capas (dependencias casi nunca cambian → caché) ----------
-FROM maven:3.9.16-eclipse-temurin-25-alpine AS build
+FROM maven:3-eclipse-temurin-26-alpine AS build
 WORKDIR /workspace
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -q dependency:go-offline
