@@ -89,7 +89,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail integrity(DataIntegrityViolationException ex) {
-        log.info("Violación de integridad: {}", ex.getMostSpecificCause().getMessage());
+        // Solo la primera línea (restricción violada): el detalle de PostgreSQL incluye los valores (p. ej. correos).
+        String cause = String.valueOf(ex.getMostSpecificCause().getMessage()).lines().findFirst().orElse("");
+        log.info("Violación de integridad: {}", cause);
         return problem(HttpStatus.CONFLICT, "Conflicto", "Los datos entran en conflicto con registros existentes");
     }
 

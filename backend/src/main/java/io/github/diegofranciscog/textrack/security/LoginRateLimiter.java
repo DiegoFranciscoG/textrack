@@ -12,13 +12,15 @@ import java.util.Locale;
 import org.springframework.stereotype.Component;
 
 /**
- * Limita intentos de login por (IP + correo) y por IP (OWASP API4 / API2). En memoria: suficiente para una
- * instancia; con varias réplicas se movería a Redis con el mismo contrato.
+ * Limita intentos de login por (IP + correo), por IP y por cuenta (OWASP API4 / API2). El límite por cuenta no
+ * depende de la IP: detrás de un proxy la IP sale de X-Forwarded-For y un atacante podría variarla en cada intento.
+ * En memoria: suficiente para una instancia; con varias réplicas se movería a Redis con el mismo contrato.
  */
 @Component
 public class LoginRateLimiter {
 
     private static final int IP_MULTIPLIER = 4;
+    private static final int ACCOUNT_MULTIPLIER = 2;
 
     private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
             .maximumSize(50_000)
@@ -31,8 +33,10 @@ public class LoginRateLimiter {
     }
 
     public void check(String clientIp, String email) {
+        String account = email.toLowerCase(Locale.ROOT);
         consume("ip:" + clientIp, attemptsPerMinute * IP_MULTIPLIER);
-        consume("user:" + clientIp + ":" + email.toLowerCase(Locale.ROOT), attemptsPerMinute);
+        consume("account:" + account, attemptsPerMinute * ACCOUNT_MULTIPLIER);
+        consume("user:" + clientIp + ":" + account, attemptsPerMinute);
     }
 
     private void consume(String key, int capacity) {

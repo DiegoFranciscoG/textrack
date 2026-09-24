@@ -79,6 +79,16 @@ class AuthIT extends IntegrationTest {
     }
 
     @Test
+    void loginIsRateLimitedPerAccountEvenWhenTheIpChanges() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            assertThat(login(email, "incorrecta", "10.1.0." + i).getResponse().getStatus()).isEqualTo(401);
+        }
+        MvcResult blocked = login(email, password, "10.1.0.200");
+
+        assertThat(blocked.getResponse().getStatus()).isEqualTo(429);
+    }
+
+    @Test
     void refreshTokenRotatesAndReuseRevokesAllSessions() throws Exception {
         String first = JsonPath.read(login(email, password, "10.0.0.4").getResponse().getContentAsString(),
                 "$.refreshToken");

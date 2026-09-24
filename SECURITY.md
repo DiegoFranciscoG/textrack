@@ -6,7 +6,8 @@ No abras un issue público. Escríbeme por GitHub (perfil DiegoFranciscoG) con l
 ## Prácticas aplicadas en este proyecto
 - Secretos solo por variables de entorno (`.env` no se versiona; ver `.env.example`). La API no arranca si falta `JWT_SECRET`, `TICKET_HMAC_SECRET` o la conexión a la base de datos.
 - Autorización deny-by-default por rol en cada ruta; JWT HS256 de vida corta y refresh tokens rotativos con detección de reutilización.
-- Contraseñas con BCrypt; rate limiting en el login por IP y por usuario.
+- Contraseñas con BCrypt; rate limiting en el login por IP, por IP + usuario y por cuenta.
+- Los logs no registran contraseñas, tokens ni valores de datos personales.
 - Validación de entradas (Bean Validation), límite de 1 MB por petición y errores RFC 9457 sin detalles internos.
 - Tickets QR firmados con HMAC-SHA-256; los tickets con firma inválida se rechazan y quedan auditados.
 - CORS y orígenes de WebSocket explícitos; cabeceras CSP, HSTS, `X-Frame-Options`, `Referrer-Policy` y `Permissions-Policy`.
