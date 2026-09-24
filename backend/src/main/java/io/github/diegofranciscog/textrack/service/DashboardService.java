@@ -128,8 +128,8 @@ public class DashboardService {
 
     private static OperatorKpi toOperatorKpi(OperatorPay pay, OperatorOutput output) {
         return new OperatorKpi(pay.operatorId(), pay.operatorCode(), pay.operatorName(), pay.lineCode(), pay.pieces(),
-                pay.earnedMinutes(), pay.attendedMinutes(), pay.efficiency(), pay.totalPay(), pay.floor(),
-                pay.belowFloor());
+                pay.earnedMinutes(), pay.attendedMinutes(), pay.efficiency(), pay.ordinaryPay(), pay.totalPay(),
+                pay.floor(), pay.belowFloor());
     }
 
     static BigDecimal clippedMinutes(MachineStop stop, OffsetDateTime from, OffsetDateTime to) {

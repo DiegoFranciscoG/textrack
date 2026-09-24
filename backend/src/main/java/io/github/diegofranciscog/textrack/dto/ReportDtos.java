@@ -24,7 +24,7 @@ public final class ReportDtos {
 
     public record OperatorKpi(long operatorId, String operatorCode, String operatorName, String lineCode, int pieces,
                               BigDecimal earnedMinutes, BigDecimal attendedMinutes, BigDecimal efficiency,
-                              BigDecimal totalPay, BigDecimal floor, boolean belowFloor) {
+                              BigDecimal ordinaryPay, BigDecimal totalPay, BigDecimal floor, boolean belowFloor) {
     }
 
     public record ActiveStop(long id, String machineCode, String lineCode, String reason, boolean planned,
