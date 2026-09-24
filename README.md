@@ -29,6 +29,10 @@ En una planta de confección cada prenda pasa por 10–15 operaciones de costura
 | ![Tablero](docs/img/dashboard.png) | ![Cuellos de botella](docs/img/bottlenecks.png) | ![Destajo](docs/img/payroll.png) |
 | **Trazabilidad** | **Calidad AQL** | **Tickets QR firmados (PDF)** |
 | ![Trazabilidad](docs/img/traceability.png) | ![Calidad](docs/img/quality.png) | ![Tickets](docs/img/tickets-pdf.png) |
+| **Órdenes de producción** | **Rollos · sistema de 4 puntos** | **Ingeniería de métodos (SAM y tarifas)** |
+| ![Órdenes](docs/img/orders.png) | ![Rollos](docs/img/rolls.png) | ![Ingeniería](docs/img/engineering.png) |
+| **Tablero en el celular** | **API documentada (Swagger UI)** | **Acceso** |
+| ![Tablero móvil](docs/img/dashboard-mobile.png) | ![Swagger UI](docs/img/swagger.png) | ![Login](docs/img/login.png) |
 
 ## Arquitectura
 ```mermaid

@@ -76,6 +76,13 @@ await page.getByRole('heading', { name: 'Tablero en vivo' }).waitFor({ timeout: 
 await page.waitForTimeout(1500);
 await page.screenshot({ path: file('dashboard-mobile.png') });
 
+// Documentación OpenAPI de la API
+await page.setViewportSize({ width: 1440, height: 960 });
+await page.goto(`${process.env.E2E_API_URL ?? 'http://localhost:8081'}/swagger-ui.html`);
+await page.getByText('textrack API').first().waitFor({ timeout: 20000 });
+await page.waitForTimeout(1000);
+await page.screenshot({ path: file('swagger.png') });
+
 await page.goto('about:blank');
 await browser.close();
 console.log('Capturas guardadas en docs/img');
