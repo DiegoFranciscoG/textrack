@@ -1,0 +1,143 @@
+### textrack · colección de ejemplos (VS Code REST Client o cliente HTTP de IntelliJ)
+# Las contraseñas se leen del .env local (nunca se escriben aquí).
+# Swagger UI: {{host}}/swagger-ui.html
+
+@host = http://localhost:8081
+# Ajusta estos ids con los que devuelven las respuestas anteriores.
+@orderId = 4
+@rollId = 9
+@cutId = 1
+# Contenido de un QR impreso en el PDF de tickets (léelo con cualquier lector de QR); formato TT1.k1.<uuid>.<bulto>.<op>.<qty>.<firma>
+@ticketQr = PEGA-AQUI-EL-CONTENIDO-DEL-QR
+# Identificador de la lectura generado por el dispositivo: reenviarlo nunca crea otra lectura.
+@readingId = 8d9c8a8e-2f6e-4c55-9d51-0c4b8a0e7a10
+
+### 1) Login (usuario administrador de la demo) → copia accessToken en @token
+# @name login
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "admin@textrack.demo", "password": "{{$dotenv SEED_ADMIN_PASSWORD}}" }
+
+###
+@token = {{login.response.body.accessToken}}
+@refresh = {{login.response.body.refreshToken}}
+
+### 2) Renovar el JWT (rota el refresh token)
+POST {{host}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refresh}}" }
+
+### 3) Tablero (misma foto que se publica por WebSocket en /topic/dashboard)
+GET {{host}}/api/v1/dashboard
+Authorization: Bearer {{token}}
+
+### 4) Estilos con operaciones, SAM y tarifa vigente
+GET {{host}}/api/v1/styles
+Authorization: Bearer {{token}}
+
+### 5) Nueva tarifa a destajo con vigencia (cierra la anterior)
+POST {{host}}/api/v1/operations/2/rates
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "rateUsd": 0.0650, "validFrom": "2026-10-01" }
+
+### 6) Crear orden de producción (tallas × colores)
+POST {{host}}/api/v1/production-orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "styleId": 1,
+  "customer": "Cliente Demo Costa",
+  "dueDate": "2026-10-30",
+  "lines": [
+    { "sizeCode": "M", "color": "Azul marino", "quantity": 120 },
+    { "sizeCode": "L", "color": "Azul marino", "quantity": 120 }
+  ]
+}
+
+### 7) Recibir un rollo e inspeccionarlo con el sistema de 4 puntos (ASTM D5430)
+POST {{host}}/api/v1/fabric-rolls
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "code": "R-DEMO-01", "supplier": "Tejidos Andinos Demo", "dyeLot": "L-2410-Z", "color": "Azul marino",
+  "lengthM": 110, "widthCm": 170 }
+
+###
+POST {{host}}/api/v1/fabric-rolls/{{rollId}}/inspection
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "inspectedLengthM": 110, "defects": [ { "positionM": 12.5, "lengthMm": 60, "hole": false, "defectTypeCode": "SLUB" } ] }
+
+### 8) Corte → bultos → tickets firmados (HMAC-SHA-256)
+POST {{host}}/api/v1/production-orders/{{orderId}}/cuts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "color": "Azul marino",
+  "maxBundleSize": 20,
+  "sizeRatios": [ { "sizeCode": "M", "piecesPerPly": 1 }, { "sizeCode": "L", "piecesPerPly": 1 } ],
+  "rolls": [ { "rollId": {{rollId}}, "plies": 100, "metersUsed": 60 } ]
+}
+
+### 9) PDF imprimible con los tickets QR del corte
+GET {{host}}/api/v1/cuts/{{cutId}}/tickets.pdf
+Authorization: Bearer {{token}}
+
+### 10) Registrar una lectura (idempotente: repetir este request devuelve 200 DUPLICATE)
+POST {{host}}/api/v1/readings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: {{readingId}}
+
+{
+  "clientReadingId": "{{readingId}}",
+  "payload": "{{ticketQr}}",
+  "operatorCode": "OPR-101",
+  "scannedAt": "2026-09-23T15:20:00Z",
+  "deviceId": "tablet-l1"
+}
+
+### 11) Sincronización offline por lotes (cada lectura con su propio resultado)
+POST {{host}}/api/v1/readings/batch
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "readings": [
+  { "clientReadingId": "0b9c5b1e-5e0e-4a36-9f55-1a2b3c4d5e6f", "payload": "{{ticketQr}}", "operatorCode": "OPR-101",
+    "scannedAt": "2026-09-23T15:21:00Z", "deviceId": "tablet-l1" }
+] }
+
+### 12) Destajo del día con piso SBU prorrateado, detalle y semana (Art. 53)
+GET {{host}}/api/v1/payroll/daily?date=2026-09-23
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/api/v1/payroll/daily/1?date=2026-09-23
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/api/v1/payroll/weekly/1?weekStart=2026-09-21
+Authorization: Bearer {{token}}
+
+### 13) Plan de muestreo AQL (ISO 2859-1): lote 1000, nivel II, AQL 2,5 → n=80, Ac=5, Re=6
+GET {{host}}/api/v1/quality/aql-plan?lotSize=1000&level=II&aql=2.5
+Authorization: Bearer {{token}}
+
+### 14) Cuellos de botella de una orden
+GET {{host}}/api/v1/reports/bottlenecks/1
+Authorization: Bearer {{token}}
+
+### 15) Trazabilidad: prenda → bulto → rollo y lote de teñido
+GET {{host}}/api/v1/traceability/garments/CT-00001-001-07
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/api/v1/traceability/rolls/R-24091
+Authorization: Bearer {{token}}
