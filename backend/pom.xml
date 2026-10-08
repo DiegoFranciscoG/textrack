@@ -29,7 +29,7 @@
         <springdoc.version>3.1.1</springdoc.version>
         <pdfbox.version>3.0.8</pdfbox.version>
         <zxing.version>3.5.4</zxing.version>
-        <bucket4j.version>8.20.0</bucket4j.version>
+        <bucket4j.version>8.21.0</bucket4j.version>
         <jacoco.version>0.8.15</jacoco.version>
     </properties>
 
