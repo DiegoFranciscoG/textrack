@@ -8,7 +8,7 @@ COPY . .
 RUN npx ng build
 
 # ---------- runtime: nginx sin privilegios (puerto 8080) ----------
-FROM nginxinc/nginx-unprivileged:1.30.1-alpine3.23
+FROM nginxinc/nginx-unprivileged:1.31.2-alpine3.23
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
 EXPOSE 8080
